@@ -1,0 +1,11 @@
+{
+    "properties": {
+        "x1": "val1",
+        "X2": "val2",
+    },
+    "items" : {
+        "FunFiles": ["funFile1.txt", "funFile2.txt"],
+        "FilesWithMeta": [{"identity": "funFile3.txt", "TargetPath": "bin/fun3"},
+                        {"identity": "funFile4.txt", "TargetPath": "bin/fun4"}]
+    }
+}

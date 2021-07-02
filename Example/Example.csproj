@@ -1,0 +1,22 @@
+<Project DefaultTarget="RunMe">
+    <UsingTask TaskName="MyJsonReader" AssemblyFile="..\JsonToItemsTaskFactory\bin\Debug\net5.0\JsonToItemsTaskFactory.dll"
+        TaskFactory="JsonToItemsTaskFactory.JsonToItemsTaskFactory">
+        <ParameterGroup>
+            <JsonFilePath ParameterType="System.String" Required="true" Output="false" />
+            <X1 ParameterType="System.String" Required="false" Output="true" />
+            <FunFiles ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="false" Output="true" />
+            <FilesWithMeta ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="false" Output="true" />
+        </ParameterGroup>
+    </UsingTask>
+
+    <Target Name="RunMe">
+        <MyJsonReader JsonFilePath="$(MSBuildThisFileDirectory)\example.jsonc">
+            <Output TaskParameter="X1" PropertyName="FromJsonX1" />
+            <Output TaskParameter="FunFiles" ItemName="FromJsonFunFiles" />
+            <Output TaskParameter="FilesWithMeta" ItemName="FromJsonWithMeta" />
+        </MyJsonReader> 
+        <Message Importance="High" Text="X1 = $(FromJsonX1)" />
+        <Message Importance="High" Text="FunFiles = @(FromJsonFunFiles)" />
+        <Message Importance="High" Text="FilesWithMeta = @(FromJsonWithMeta)  TargetPath='%(TargetPath)'" />
+    </Target>
+</Project>

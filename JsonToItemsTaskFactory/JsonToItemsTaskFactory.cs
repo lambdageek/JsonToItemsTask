@@ -1,8 +1,269 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+using Microsoft.Build.Framework;
+using Microsoft.Build.Utilities;
 
 namespace JsonToItemsTaskFactory
 {
-    public class JsonToItemsTaskFactory
+
+    /// <summary>Reads a json input blob and populates some output items</summary>
+    ///
+    /// <example>JSON should follow this structure - the toplevel "properties" and "items" keys are exact, other keys are arbitrary.
+    /// <code>
+    /// {
+    ///    "properties" : {
+    ///      "propName1": "value1",
+    ///      "propName2": "value"
+    ///    },
+    ///    "items" : {
+    ///      "itemName1": [ "stringValue", { "identity": "anotherValue", "metadataKey": "metadataValue", ... }, "thirdValue" ],
+    ///      "itemName2": [ ... ]
+    /// }
+    /// </code>
+    ///
+    /// A task can be declared by
+    ///
+    /// <code>
+    /// <UsingTask AssemblyFile="..." TaskName="MyJsonReader" TaskFactory="Microsoft.DotNet.Runtime.Tasks.JsonToItemsTaskFactory">
+    ///   <ParameterGroup>
+    ///     <JsonFilePath ParameterType="System.String" Required="True" Output="False" />
+    ///     <PropName1 ParameterType="System.String" Required="False" Output="True" />
+    ///     <ItemName1 ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="False" Output="True" />
+    ///   <ParameterGroup>
+    /// </UsingTask>
+    /// </code> 
+    ///
+    /// And then used in a target
+    ///
+    /// <code>
+    /// <Target Name="UseMyReader">
+    ///   <MyJsonReader JsonFilePath="foo.json">
+    ///     <Output TaskParameter="PropName1" PropertyName="MyParsedProperty" />
+    ///     <Output TaskParameter="ItemName1" ItemName="MyParsedItems" />
+    ///   </MyJsonReader>
+    ///   <Message Priority="High" Text=" Got property $(MyParsedProperty) and items @(MyParsedItems)" />
+    /// </Target>
+    /// </code>
+    /// </example>
+    public class JsonToItemsTaskFactory : ITaskFactory
     {
+        const string JsonFilePath = "JsonFilePath";
+        private TaskPropertyInfo[]? _taskProperties;
+        private string? _taskName;
+
+        public JsonToItemsTaskFactory() {}
+
+        public string FactoryName => "JsonToItemsTaskFactory";
+
+        public Type TaskType => typeof(JsonToItemsTask);
+
+        public bool Initialize (string taskName, IDictionary<string,TaskPropertyInfo> parameterGroup, string? taskBody, IBuildEngine taskFactoryLoggingHost) {
+            _taskProperties = new TaskPropertyInfo[parameterGroup.Count];
+            _taskName = taskName;
+            var log = new TaskLoggingHelper(taskFactoryLoggingHost, _taskName);
+            parameterGroup.Values.CopyTo(_taskProperties, 0);
+            if (parameterGroup.TryGetValue(nameof(JsonFilePath), out var jsonFilePathProp)) {
+                if (!jsonFilePathProp.Required || !typeof(string).IsAssignableFrom(jsonFilePathProp.PropertyType) || jsonFilePathProp.Output) {
+                    log.LogError($"{nameof(JsonFilePath)} parameter must be declared as a non-output required System.String");
+                    return false;
+                }
+            } else {
+                log.LogError($"{nameof(JsonFilePath)} parameter not specified for {_taskName}");
+                return false;
+            }
+            // TODO: Sanity check the properties are all string, and the items are all ITaskItem[]
+            return true;
+        }
+
+        public TaskPropertyInfo[] GetTaskParameters () => _taskProperties!;
+
+        public ITask CreateTask (IBuildEngine taskFactoryLoggingHost)
+        {
+            var log = new TaskLoggingHelper(taskFactoryLoggingHost, _taskName);
+            log.LogMessage("CreateTask called");
+            return new JsonToItemsTask(_taskName!);
+        }
+
+        public void CleanupTask (ITask task) {}
+
+        public class JsonToItemsTask : IGeneratedTask {
+            
+
+            IBuildEngine? _buildEngine;
+            public IBuildEngine BuildEngine { get => _buildEngine!; set { _buildEngine = value; SetBuildEngine(value);} }
+            public ITaskHost? HostObject { get; set; }
+
+            TaskLoggingHelper? _log;
+            TaskLoggingHelper Log { get => _log!; set { _log = value; } }
+
+            private void SetBuildEngine (IBuildEngine buildEngine)
+            {
+                Log = new TaskLoggingHelper(buildEngine, TaskName);
+            }
+
+            public static JsonSerializerOptions JsonOptions => new () {
+                            PropertyNameCaseInsensitive =  true,
+                            AllowTrailingCommas = true,
+                        };
+            private string? jsonFilePath;
+
+            private JsonModelRoot? jsonModel;
+            public string TaskName {get;}
+            public JsonToItemsTask(string taskName) {
+                TaskName = taskName;
+            }
+
+            public bool Execute() {
+                if (jsonFilePath == null) {
+                    Log.LogError("no JsonFilePath specified");
+                    return false;
+                }
+                try {
+                    using (var file = File.OpenRead(jsonFilePath)) {
+                        
+                        var json = JsonSerializer.DeserializeAsync<JsonModelRoot>(file, JsonOptions).AsTask().Result;
+                        if (json == null) {
+                            Log.LogError ("Failed to deserialize Json file");
+                            return false;
+                        }
+                        if (json.Properties != null) {
+                            Log.LogMessage ("json has properties: ");
+                            foreach (var property in json.Properties) {
+                                Log.LogMessage($"  {property.Key} = {property.Value}");
+                            }
+                        }
+                        if (json.Items != null) {
+                            Log.LogMessage("items: ");
+                            foreach (var item in json.Items) {
+                                Log.LogMessage($"  {item.Key} = [");
+                                foreach (var value in item.Value) {
+                                    Log.LogMessage($"    {value.Identity}");
+                                    if (value.Metadata != null) {
+                                        Log.LogMessage("       and some metadata, too");
+                                    }
+                                }
+                                Log.LogMessage("  ]");                               
+                            }
+                        }
+                        jsonModel = json;
+                    } 
+                } catch (FileNotFoundException fnfe) {
+                    Log.LogErrorFromException(fnfe);
+                    return false;
+                }
+                return true;
+            }
+
+            public object? GetPropertyValue (TaskPropertyInfo property) {
+                bool isItem = false;
+                if (typeof (ITaskItem[]).IsAssignableFrom (property.PropertyType)) {
+                    Log.LogMessage("GetPropertyValue called with @({0})", property.Name);
+                    isItem = true;
+                } else {
+                    Log.LogMessage("GetPropertyValue called with $({0})", property.Name);
+                }
+                if (!isItem) {
+                    if (jsonModel?.Properties != null &&  jsonModel.Properties.TryGetValue(property.Name, out var value)) {
+                        return value;
+                    }
+                    Log.LogError("Property {0} not found in {1}", property.Name, jsonFilePath);
+                    throw new Exception();
+                } else {
+                    if (jsonModel?.Items != null && jsonModel.Items.TryGetValue(property.Name, out var itemModels)) {
+                        return ConvertItems (itemModels);
+                    }
+
+                }
+                return null;
+            }
+
+            public static ITaskItem[] ConvertItems(JsonModelItem[] itemModels) {
+                var items = new ITaskItem[itemModels.Length];
+                for (int i = 0; i < itemModels.Length; i++) {
+                    var itemModel = itemModels[i];
+                    var item = new TaskItem(itemModel.Identity);
+                    if (itemModel.Metadata != null) {
+                        foreach (var metadata in itemModel.Metadata) {
+                            if (string.Equals(metadata.Key, "Identity", StringComparison.OrdinalIgnoreCase))
+                                continue;
+                            item.SetMetadata(metadata.Key, metadata.Value);
+                        }
+                    }
+                    items[i] = item;
+                }
+                return items;
+            }
+
+            public void SetPropertyValue (TaskPropertyInfo property, object? value) {
+                Log.LogMessage("SetPropertyValue called with {0}", property.Name);
+                if (property.Name == "JsonFilePath") {
+                    jsonFilePath = (string)value!;
+                } else
+                    throw new Exception ($"JsonToItemsTask {TaskName} cannot set property {property.Name}");
+            }
+
+        }
+
+        public class JsonModelRoot {
+            [JsonConverter(typeof(CaseInsensitiveDictionaryConverter))]
+            public Dictionary<string,string>?  Properties {get; set;}
+            public Dictionary<string,JsonModelItem[]>? Items {get; set;}
+
+            public JsonModelRoot() {}
+        }
+
+        [JsonConverter(typeof(JsonModelItemConverter))]
+        public class JsonModelItem {
+            public string? Identity {get; set;}
+            // n.b. will  be deserialized case insensitive
+            public Dictionary<string,string>? Metadata {get;  set; }
+        }
+
+        public class CaseInsensitiveDictionaryConverter : JsonConverter<Dictionary<string,string>> {
+            public override Dictionary<string,string>? Read (ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) {
+                var dict = JsonSerializer.Deserialize<Dictionary<string,string>>(ref reader, options);
+                if (dict == null)
+                    return null;
+                return new Dictionary<string, string>(dict, StringComparer.OrdinalIgnoreCase);
+            }
+            public override void Write (Utf8JsonWriter writer, Dictionary<string,string>? value, JsonSerializerOptions options) =>
+                JsonSerializer.Serialize(writer, value, options);
+        }
+        public  class JsonModelItemConverter : JsonConverter<JsonModelItem> {
+            public JsonModelItemConverter() {}
+
+            public override JsonModelItem? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) {
+                switch (reader.TokenType) {
+                    case JsonTokenType.String:
+                        return new JsonModelItem { Identity = reader.GetString() };
+                    case JsonTokenType.StartObject:
+                        var item = new JsonModelItem();
+                        var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(ref reader, options);
+                        if (dict == null)
+                            return null;
+                        var idict = new Dictionary<string,string> (dict, StringComparer.OrdinalIgnoreCase);
+                        if  (!idict.TryGetValue("Identity", out var identity) || identity == null)
+                            throw new Exception ("deserialized json dictionary item did not have an Identity metadata");
+                        item.Identity = identity;
+                        item.Metadata = idict;
+                        return item;
+                    default:
+                        throw new Exception();
+                }
+            }
+            public override void Write(Utf8JsonWriter writer, JsonModelItem value, JsonSerializerOptions options) {
+                if (value.Metadata == null)
+                    JsonSerializer.Serialize(writer, value.Identity!);
+                else {
+                    JsonSerializer.Serialize(writer, value.Metadata); /* assumes Identity is in there */
+                }
+            }
+        }; 
+
     }
+
 }
