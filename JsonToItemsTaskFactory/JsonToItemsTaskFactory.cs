@@ -42,14 +42,13 @@ namespace JsonToItemsTaskFactory
     /// <code>
     /// <UsingTask AssemblyFile="..." TaskName="MyJsonReader" TaskFactory="Microsoft.DotNet.Runtime.Tasks.JsonToItemsTaskFactory">
     ///   <ParameterGroup>
-    ///     <JsonFilePath ParameterType="System.String" Required="True" Output="False" />
     ///     <PropName1 ParameterType="System.String" Required="False" Output="True" />
     ///     <ItemName1 ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="False" Output="True" />
     ///   <ParameterGroup>
     /// </UsingTask>
     /// </code> 
     ///
-    /// And then used in a target
+    /// And then used in a target.  The `JsonFilePath' attribute is used to specify the json file to read.
     ///
     /// <code>
     /// <Target Name="UseMyReader">
@@ -76,14 +75,15 @@ namespace JsonToItemsTaskFactory
         public Type TaskType => typeof(JsonToItemsTask);
 
         public bool Initialize (string taskName, IDictionary<string,TaskPropertyInfo> parameterGroup, string? taskBody, IBuildEngine taskFactoryLoggingHost) {
-            _taskProperties = new TaskPropertyInfo[parameterGroup.Count];
             _taskName = taskName;
             if (taskBody != null && taskBody.StartsWith("debug", StringComparison.InvariantCultureIgnoreCase))
                 logDebugTask = true;
             var log = new TaskLoggingHelper(taskFactoryLoggingHost, _taskName);
             if (!ValidateParameterGroup (parameterGroup, log))
                 return false;
-            parameterGroup.Values.CopyTo(_taskProperties, 0);
+            _taskProperties = new TaskPropertyInfo[parameterGroup.Count + 1];
+            _taskProperties[0] = new TaskPropertyInfo(nameof(JsonFilePath), typeof(string), output: false, required: true);
+            parameterGroup.Values.CopyTo(_taskProperties, 1);
             return true;
         }
 
@@ -100,18 +100,14 @@ namespace JsonToItemsTaskFactory
 
         internal bool ValidateParameterGroup (IDictionary<string, TaskPropertyInfo> parameterGroup, TaskLoggingHelper log)
         {
-            bool sawJsonFilePath = false;
             bool hasErrors = false;
             var taskName = _taskName ?? "";
             foreach (var kvp in parameterGroup) {
                 var propName = kvp.Key;
                 var propInfo = kvp.Value;
                 if (String.Equals(propName, nameof(JsonFilePath), StringComparison.InvariantCultureIgnoreCase)) {
-                    sawJsonFilePath = true;
-                    if (!propInfo.Required || !typeof(string).IsAssignableFrom(propInfo.PropertyType) || propInfo.Output) {
-                        log.LogError($"Task {taskName}: {nameof(JsonFilePath)} parameter must be declared as a non-output required System.String");
-                        hasErrors = true;
-                    }
+                    log.LogError($"Task {taskName}: {nameof(JsonFilePath)} parameter must not be declared. It is implicitly added by the task.");
+                    hasErrors = true;
                     continue;
                 }
 
@@ -131,10 +127,6 @@ namespace JsonToItemsTaskFactory
 
                 log.LogError($"Task {taskName}: parameter {propName} is not an output of type System.String or Microsoft.Build.Framework.ITaskItem[]");
                 hasErrors = true;
-            }
-            if (!sawJsonFilePath) {
-                log.LogError($"{nameof(JsonFilePath)} parameter not specified for {_taskName}");
-                return false;
             }
             return !hasErrors;
         }

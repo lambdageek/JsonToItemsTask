@@ -66,7 +66,6 @@ To use the task, you need to reference the assembly and add the task to the proj
 <UsingTask TaskName="MyJsonReader" AssemblyFile="..\JsonToItemsTaskFactory\bin\Debug\net6.0\JsonToItemsTaskFactory.dll"
         TaskFactory="JsonToItemsTaskFactory.JsonToItemsTaskFactory">
     <ParameterGroup>
-        <JsonFilePath ParameterType="System.String" Required="true" Output="false" />
         <X1 ParameterType="System.String" Required="false" Output="true" />
         <FunFiles ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="false" Output="true" />
         <FilesWithMeta ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="false" Output="true" />
@@ -74,11 +73,12 @@ To use the task, you need to reference the assembly and add the task to the proj
 </UsingTask>
 ```
 
-The `JsonFilePath` parameter is mandatory and specified the file that will be read.
-
-The other parameters are all optional, must be non-required outputs of type `System.String` or `Microsoft.Build.Framework.ITaskItem[]`.  The former declares properties, while the latter declares items.
+The parameter group parameters are all optional. They must be non-required outputs of type `System.String` or `Microsoft.Build.Framework.ITaskItem[]`.  The former declares properties to capture from the file, while the latter declares item lists.
 
 The above declares a task `MyJsonReader` which will be used to retries the `X1` property and the `FunFiles` and `FilesWithMeta` items.
+
+To use the task, a `JsonFilePath` attribute specifies the file to read.
+
 
 ```xml
 <Target Name="RunMe">
