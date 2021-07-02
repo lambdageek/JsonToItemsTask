@@ -122,40 +122,45 @@ namespace JsonToItemsTaskFactory
                     Log.LogError("no JsonFilePath specified");
                     return false;
                 }
+                FileStream? file = null;
                 try {
-                    using (var file = File.OpenRead(jsonFilePath)) {
-                        
-                        var json = JsonSerializer.DeserializeAsync<JsonModelRoot>(file, JsonOptions).AsTask().Result;
-                        if (json == null) {
-                            Log.LogError ("Failed to deserialize Json file");
-                            return false;
+                    try {
+                        file = File.OpenRead(jsonFilePath);
+                    } catch (FileNotFoundException fnfe) {
+                        Log.LogErrorFromException(fnfe);
+                        return false;
+                    }        
+                    var json = JsonSerializer.DeserializeAsync<JsonModelRoot>(file, JsonOptions).AsTask().Result;
+                    if (json == null) {
+                        Log.LogError ("Failed to deserialize Json file");
+                        return false;
+                    }
+                    if (json.Properties != null) {
+                        Log.LogMessage ("json has properties: ");
+                        foreach (var property in json.Properties) {
+                            Log.LogMessage($"  {property.Key} = {property.Value}");
                         }
-                        if (json.Properties != null) {
-                            Log.LogMessage ("json has properties: ");
-                            foreach (var property in json.Properties) {
-                                Log.LogMessage($"  {property.Key} = {property.Value}");
-                            }
-                        }
-                        if (json.Items != null) {
-                            Log.LogMessage("items: ");
-                            foreach (var item in json.Items) {
-                                Log.LogMessage($"  {item.Key} = [");
-                                foreach (var value in item.Value) {
-                                    Log.LogMessage($"    {value.Identity}");
-                                    if (value.Metadata != null) {
-                                        Log.LogMessage("       and some metadata, too");
-                                    }
+                    }
+                    if (json.Items != null) {
+                        Log.LogMessage("items: ");
+                        foreach (var item in json.Items) {
+                            Log.LogMessage($"  {item.Key} = [");
+                            foreach (var value in item.Value) {
+                                Log.LogMessage($"    {value.Identity}");
+                                if (value.Metadata != null) {
+                                    Log.LogMessage("       and some metadata, too");
                                 }
-                                Log.LogMessage("  ]");                               
                             }
+                            Log.LogMessage("  ]");                               
                         }
-                        jsonModel = json;
-                    } 
-                } catch (FileNotFoundException fnfe) {
-                    Log.LogErrorFromException(fnfe);
-                    return false;
+                    }
+                    jsonModel = json;
+                    return true;
+                } finally {
+                    if (file != null) {
+                        file.Dispose();
+                    }
                 }
-                return true;
             }
 
             public object? GetPropertyValue (TaskPropertyInfo property) {

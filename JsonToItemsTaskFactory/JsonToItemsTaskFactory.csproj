@@ -1,10 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFrameworks>net5.0;net472</TargetFrameworks>
+    <Langversion>latest</Langversion>
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="5.0" />
     <PackageReference Include="Microsoft.Build" Version="16.10" />
     <PackageReference Include="Microsoft.Build.Framework" Version="16.10" />
     <PackageReference Include="Microsoft.Build.Tasks.Core" Version="16.10" />

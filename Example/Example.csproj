@@ -1,5 +1,8 @@
 <Project DefaultTarget="RunMe">
-    <UsingTask TaskName="MyJsonReader" AssemblyFile="..\JsonToItemsTaskFactory\bin\Debug\net5.0\JsonToItemsTaskFactory.dll"
+    <PropertyGroup>
+        <TargetFramework  Condition="'$(TargetFramework)' == ''">net5.0</TargetFramework>
+    </PropertyGroup>
+    <UsingTask TaskName="MyJsonReader" AssemblyFile="..\JsonToItemsTaskFactory\bin\Debug\$(TargetFramework)\JsonToItemsTaskFactory.dll"
         TaskFactory="JsonToItemsTaskFactory.JsonToItemsTaskFactory">
         <ParameterGroup>
             <JsonFilePath ParameterType="System.String" Required="true" Output="false" />

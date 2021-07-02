@@ -7,7 +7,7 @@ This serves as two things:
 
 ## Building and running the example
 
-You need .NET 5 (although in principle there's nothing preventing this from working on earlier versions of .NET Core or on .NET Framework 4.7)
+The task works with .NET 5 or .NET Framework 4.7.2. (It potentially works with earlier versions of .NET Core, too)
 
 ```console
 $ dotnet build /v:q /nologo JsonToItemsTaskFactory
@@ -98,4 +98,4 @@ The above declares a task `MyJsonReader` which will be used to retries the `X1` 
 </Target>
 ```
 
-When the target `RunMe` runs, the task will read the json file and populate the outputs.
+When the target `RunMe` runs, the task will read the json file and populate the outputs
