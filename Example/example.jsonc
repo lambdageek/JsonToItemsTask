@@ -6,6 +6,7 @@
     "items" : {
         "FunFiles": ["funFile1.txt", "funFile2.txt"],
         "FilesWithMeta": [{"identity": "funFile3.txt", "TargetPath": "bin/fun3"},
+                        "funFile3.and.a.half.txt",
                         {"identity": "funFile4.txt", "TargetPath": "bin/fun4"}]
     }
 }

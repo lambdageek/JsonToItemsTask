@@ -17,6 +17,11 @@
         </MyJsonReader> 
         <Message Importance="High" Text="X1 = $(FromJsonX1)" />
         <Message Importance="High" Text="FunFiles = @(FromJsonFunFiles)" />
-        <Message Importance="High" Text="FilesWithMeta = @(FromJsonWithMeta)  TargetPath='%(TargetPath)'" />
+        <ItemGroup>
+            <FromJsonWithMetaWithTP Include="@(FromJsonWithMeta->HasMetadata('TargetPath'))" />
+            <FromJsonWithMetaWithoutTP Include="@(FromJsonWithMeta)" Exclude="@(FromJsonWithMetaWithTP)" />
+        </ItemGroup>
+        <Message Importance="High" Text="FilesWithMeta = @(FromJsonWithMetaWithTP)  TargetPath='%(TargetPath)'"/>
+        <Message Importance="High" Text="FilesWithMeta = @(FromJsonWithMetaWithoutTP)  (No TargetPath)" />
     </Target>
 </Project>

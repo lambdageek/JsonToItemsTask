@@ -17,10 +17,11 @@ Build succeeded.
 
 Time Elapsed 00:00:00.82
 $ dotnet build Example
- X1 = val1
+  X1 = val1
   FunFiles = funFile1.txt;funFile2.txt
   FilesWithMeta = funFile3.txt  TargetPath='bin/fun3'
   FilesWithMeta = funFile4.txt  TargetPath='bin/fun4'
+  FilesWithMeta = funFile3.and.a.half.txt  (No TargetPath)
 
 Build succeeded.
     0 Warning(s)
@@ -51,6 +52,7 @@ Dictionary elements must have strings as values, and must include an `"Identity"
     "items" : {
         "FunFiles": ["funFile1.txt", "funFile2.txt"],
         "FilesWithMeta": [{"identity": "funFile3.txt", "TargetPath": "bin/fun3"},
+                        "funFile3.and.a.half.txt",
                         {"identity": "funFile4.txt", "TargetPath": "bin/fun4"}]
     }
 }
@@ -63,13 +65,13 @@ To use the task, you need to reference the assembly and add the task to the proj
 ```xml
 <UsingTask TaskName="MyJsonReader" AssemblyFile="..\JsonToItemsTaskFactory\bin\Debug\net6.0\JsonToItemsTaskFactory.dll"
         TaskFactory="JsonToItemsTaskFactory.JsonToItemsTaskFactory">
-        <ParameterGroup>
-            <JsonFilePath ParameterType="System.String" Required="true" Output="false" />
-            <X1 ParameterType="System.String" Required="false" Output="true" />
-            <FunFiles ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="false" Output="true" />
-            <FilesWithMeta ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="false" Output="true" />
-        </ParameterGroup>
-    </UsingTask>
+    <ParameterGroup>
+        <JsonFilePath ParameterType="System.String" Required="true" Output="false" />
+        <X1 ParameterType="System.String" Required="false" Output="true" />
+        <FunFiles ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="false" Output="true" />
+        <FilesWithMeta ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="false" Output="true" />
+    </ParameterGroup>
+</UsingTask>
 ```
 
 The `JsonFilePath` parameter is mandatory and specified the file that will be read.
@@ -80,15 +82,20 @@ The above declares a task `MyJsonReader` which will be used to retries the `X1` 
 
 ```xml
 <Target Name="RunMe">
-        <MyJsonReader JsonFilePath="$(MSBuildThisFileDirectory)\example.jsonc">
-            <Output TaskParameter="X1" PropertyName="FromJsonX1" />
-            <Output TaskParameter="FunFiles" ItemName="FromJsonFunFiles" />
-            <Output TaskParameter="FilesWithMeta" ItemName="FromJsonWithMeta" />
-        </MyJsonReader> 
-        <Message Importance="High" Text="X1 = $(FromJsonX1)" />
-        <Message Importance="High" Text="FunFiles = @(FromJsonFunFiles)" />
-        <Message Importance="High" Text="FilesWithMeta = @(FromJsonWithMeta)  TargetPath='%(TargetPath)'" />
-    </Target>
+    <MyJsonReader JsonFilePath="$(MSBuildThisFileDirectory)\example.jsonc">
+        <Output TaskParameter="X1" PropertyName="FromJsonX1" />
+        <Output TaskParameter="FunFiles" ItemName="FromJsonFunFiles" />
+        <Output TaskParameter="FilesWithMeta" ItemName="FromJsonWithMeta" />
+    </MyJsonReader> 
+    <Message Importance="High" Text="X1 = $(FromJsonX1)" />
+    <Message Importance="High" Text="FunFiles = @(FromJsonFunFiles)" />
+    <ItemGroup>
+        <FromJsonWithMetaWithTP Include="@(FromJsonWithMeta->HasMetadata('TargetPath'))" />
+        <FromJsonWithMetaWithoutTP Include="@(FromJsonWithMeta)" Exclude="@(FromJsonWithMetaWithTP)" />
+    </ItemGroup>
+    <Message Importance="High" Text="FilesWithMeta = @(FromJsonWithMetaWithTP)  TargetPath='%(TargetPath)'"/>
+    <Message Importance="High" Text="FilesWithMeta = @(FromJsonWithMetaWithoutTP)  (No TargetPath)" />
+</Target>
 ```
 
 When the target `RunMe` runs, the task will read the json file and populate the outputs.
