@@ -79,7 +79,6 @@ The above declares a task `MyJsonReader` which will be used to retries the `X1` 
 
 To use the task, a `JsonFilePath` attribute specifies the file to read.
 
-
 ```xml
 <Target Name="RunMe">
     <MyJsonReader JsonFilePath="$(MSBuildThisFileDirectory)\example.jsonc">
